@@ -4,10 +4,10 @@ from typing import Any, Dict, Optional
 class Cache:
     def __init__(self, ttl: int = 60):
         """
-        Initialize the cache with a time-to-live (TTL) in seconds.
+        Initialize the cache with a time-to-live (TTL) value.
 
         Args:
-        ttl (int): The time-to-live in seconds. Defaults to 60.
+        - ttl (int): The time-to-live value in seconds. Defaults to 60 seconds.
         """
         self.cache: Dict[str, Any] = {}
         self.ttl = ttl
@@ -17,14 +17,14 @@ class Cache:
         Get a value from the cache.
 
         Args:
-        key (str): The key to retrieve.
+        - key (str): The key to retrieve from the cache.
 
         Returns:
-        Optional[Any]: The cached value or None if not found or expired.
+        - The cached value if it exists and is not expired, otherwise None.
         """
         if key in self.cache:
-            value, expires = self.cache[key]
-            if time.time() < expires:
+            value, expiry = self.cache[key]
+            if time.time() < expiry:
                 return value
             else:
                 del self.cache[key]
@@ -35,104 +35,76 @@ class Cache:
         Set a value in the cache.
 
         Args:
-        key (str): The key to store.
-        value (Any): The value to store.
+        - key (str): The key to store in the cache.
+        - value (Any): The value to store in the cache.
         """
-        expires = time.time() + self.ttl
-        self.cache[key] = (value, expires)
+        expiry = time.time() + self.ttl
+        self.cache[key] = (value, expiry)
 
     def delete(self, key: str) -> None:
         """
         Delete a key from the cache.
 
         Args:
-        key (str): The key to delete.
+        - key (str): The key to delete from the cache.
         """
         if key in self.cache:
             del self.cache[key]
+
+    def clear(self) -> None:
+        """
+        Clear the entire cache.
+        """
+        self.cache.clear()
+
 
 def get_cache() -> Cache:
     """
     Get the cache instance.
 
     Returns:
-    Cache: The cache instance.
+    - The cache instance.
     """
     return Cache()
 
+
+def cache_api_response(ttl: int = 60):
+    """
+    Decorator to cache API responses.
+
+    Args:
+    - ttl (int): The time-to-live value in seconds. Defaults to 60 seconds.
+    """
+    cache = get_cache()
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
+            cached_response = cache.get(key)
+            if cached_response is not None:
+                return cached_response
+            response = func(*args, **kwargs)
+            cache.set(key, response)
+            return response
+        return wrapper
+    return decorator
+
+
 # Example usage:
+@cache_api_response(ttl=30)
+def fetch_github_data(owner: str, repo: str) -> Dict:
+    # Simulate an API call to GitHub
+    time.sleep(2)
+    return {"owner": owner, "repo": repo}
+
+# Test the cache
 cache = get_cache()
+print(cache.get("test_key"))  # Should print None
+cache.set("test_key", "test_value")
+print(cache.get("test_key"))  # Should print "test_value"
+cache.delete("test_key")
+print(cache.get("test_key"))  # Should print None
 
-def fetch_github_data(repo: str, owner: str) -> Dict[str, str]:
-    """
-    Fetch GitHub data with caching.
-
-    Args:
-    repo (str): The repository name.
-    owner (str): The repository owner.
-
-    Returns:
-    Dict[str, str]: The fetched data.
-    """
-    key = f"github-{repo}-{owner}"
-    cached_data = cache.get(key)
-    if cached_data:
-        return cached_data
-
-    # Simulate a GitHub API call
-    data = {"repo": repo, "owner": owner, "data": "example data"}
-    cache.set(key, data)
-    return data
-
-def fetch_openai_data(prompt: str) -> Dict[str, str]:
-    """
-    Fetch OpenAI data with caching.
-
-    Args:
-    prompt (str): The prompt to send to OpenAI.
-
-    Returns:
-    Dict[str, str]: The fetched data.
-    """
-    key = f"openai-{prompt}"
-    cached_data = cache.get(key)
-    if cached_data:
-        return cached_data
-
-    # Simulate an OpenAI API call
-    data = {"prompt": prompt, "data": "example data"}
-    cache.set(key, data)
-    return data
-
-# Usage in existing files:
-# In src/feature/code_clone_detection.py
-from src.utils.cache import get_cache
-
-cache = get_cache()
-
-def detect_code_clones(code: str) -> Dict[str, str]:
-    # ...
-    cached_data = cache.get(f"code_clone_detection-{code}")
-    if cached_data:
-        return cached_data
-
-    # Simulate a code clone detection API call
-    data = {"code": code, "clones": "example clones"}
-    cache.set(f"code_clone_detection-{code}", data)
-    return data
-
-# In src/feature/code_security_audit.py
-from src.utils.cache import get_cache
-
-cache = get_cache()
-
-def audit_code_security(code: str) -> Dict[str, str]:
-    # ...
-    cached_data = cache.get(f"code_security_audit-{code}")
-    if cached_data:
-        return cached_data
-
-    # Simulate a code security audit API call
-    data = {"code": code, "vulnerabilities": "example vulnerabilities"}
-    cache.set(f"code_security_audit-{code}", data)
-    return data
+# Test the cache decorator
+print(fetch_github_data("octocat", "hello-world"))  # Should print the response and cache it
+print(fetch_github_data("octocat", "hello-world"))  # Should print the cached response
