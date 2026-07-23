@@ -1,31 +1,33 @@
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 class Cache:
     def __init__(self, ttl: int = 60):
         """
-        Initialize the cache with a time-to-live (TTL) in seconds.
+        Initialize the cache with a time-to-live (TTL) value.
 
         Args:
-        ttl (int): The time-to-live in seconds. Defaults to 60.
+        ttl (int): The time-to-live value in seconds. Defaults to 60.
         """
-        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.cache: Dict[str, Any] = {}
         self.ttl = ttl
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any:
         """
         Get a value from the cache.
 
         Args:
-        key (str): The key to retrieve.
+        key (str): The key to retrieve from the cache.
 
         Returns:
-        Optional[Any]: The cached value or None if not found or expired.
+        Any: The cached value or None if not found or expired.
         """
         if key in self.cache:
-            value = self.cache[key]
-            if time.time() - value["timestamp"] < self.ttl:
-                return value["data"]
+            value, expiry = self.cache[key]
+            if time.time() < expiry:
+                return value
+            else:
+                del self.cache[key]
         return None
 
     def set(self, key: str, value: Any) -> None:
@@ -33,65 +35,68 @@ class Cache:
         Set a value in the cache.
 
         Args:
-        key (str): The key to store.
-        value (Any): The value to store.
+        key (str): The key to store in the cache.
+        value (Any): The value to store in the cache.
         """
-        self.cache[key] = {"data": value, "timestamp": time.time()}
+        expiry = time.time() + self.ttl
+        self.cache[key] = (value, expiry)
 
     def delete(self, key: str) -> None:
         """
         Delete a key from the cache.
 
         Args:
-        key (str): The key to delete.
+        key (str): The key to delete from the cache.
         """
         if key in self.cache:
             del self.cache[key]
 
-    def clear(self) -> None:
-        """
-        Clear the entire cache.
-        """
-        self.cache.clear()
-
 def get_cache() -> Cache:
     """
-    Get the global cache instance.
+    Get the cache instance.
 
     Returns:
-    Cache: The global cache instance.
+    Cache: The cache instance.
     """
     return Cache()
-
-def cache_api_response(ttl: int = 60):
-    """
-    Decorator to cache API responses.
-
-    Args:
-    ttl (int): The time-to-live in seconds. Defaults to 60.
-    """
-    cache = get_cache()
-
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
-            cached_response = cache.get(key)
-            if cached_response is not None:
-                return cached_response
-            response = func(*args, **kwargs)
-            cache.set(key, response)
-            return response
-        return wrapper
-    return decorator
 
 # Example usage:
 cache = get_cache()
 
-@cache_api_response(ttl=30)
-def example_api_call():
+def fetch_openai_api(prompt: str) -> str:
+    """
+    Fetch the OpenAI API response.
+
+    Args:
+    prompt (str): The prompt to send to the OpenAI API.
+
+    Returns:
+    str: The OpenAI API response.
+    """
     # Simulate an API call
     time.sleep(1)
-    return {"data": "Example API response"}
+    return f"Response for {prompt}"
 
-print(example_api_call())  # Cache miss
-print(example_api_call())  # Cache hit
+def get_openai_api_response(prompt: str) -> str:
+    """
+    Get the OpenAI API response from the cache or fetch it if not cached.
+
+    Args:
+    prompt (str): The prompt to send to the OpenAI API.
+
+    Returns:
+    str: The OpenAI API response.
+    """
+    cached_response = cache.get(prompt)
+    if cached_response:
+        return cached_response
+    else:
+        response = fetch_openai_api(prompt)
+        cache.set(prompt, response)
+        return response
+
+# Test the cache
+print(get_openai_api_response("Hello, World!"))  # Fetches the API response
+print(get_openai_api_response("Hello, World!"))  # Retrieves from cache
+cache.delete("Hello, World!")
+print(get_openai_api_response("Hello, World!"))  # Fetches the API response again
