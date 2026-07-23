@@ -1,18 +1,19 @@
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 class Cache:
     def __init__(self, ttl: int = 60):
         """
-        Initialize the cache with a time-to-live (TTL) value.
+        Initialize the cache with a TTL (time to live) in seconds.
 
         Args:
-        ttl (int): The time-to-live value in seconds. Defaults to 60.
+        ttl (int): The time to live for each cache entry in seconds. Defaults to 60.
         """
-        self.cache: Dict[str, Any] = {}
         self.ttl = ttl
+        self.cache: Dict[str, Any] = {}
+        self.expiration: Dict[str, float] = {}
 
-    def get(self, key: str) -> Any:
+    def get(self, key: str) -> Optional[Any]:
         """
         Get a value from the cache.
 
@@ -20,14 +21,14 @@ class Cache:
         key (str): The key to retrieve from the cache.
 
         Returns:
-        Any: The cached value or None if not found or expired.
+        Optional[Any]: The cached value if it exists and is not expired, otherwise None.
         """
         if key in self.cache:
-            value, expiry = self.cache[key]
-            if time.time() < expiry:
-                return value
+            if time.time() < self.expiration[key]:
+                return self.cache[key]
             else:
                 del self.cache[key]
+                del self.expiration[key]
         return None
 
     def set(self, key: str, value: Any) -> None:
@@ -38,8 +39,8 @@ class Cache:
         key (str): The key to store in the cache.
         value (Any): The value to store in the cache.
         """
-        expiry = time.time() + self.ttl
-        self.cache[key] = (value, expiry)
+        self.cache[key] = value
+        self.expiration[key] = time.time() + self.ttl
 
     def delete(self, key: str) -> None:
         """
@@ -50,53 +51,21 @@ class Cache:
         """
         if key in self.cache:
             del self.cache[key]
+            del self.expiration[key]
 
 def get_cache() -> Cache:
     """
-    Get the cache instance.
+    Get the global cache instance.
 
     Returns:
-    Cache: The cache instance.
+    Cache: The global cache instance.
     """
-    return Cache()
+    cache = Cache()
+    return cache
 
 # Example usage:
 cache = get_cache()
-
-def fetch_openai_api(prompt: str) -> str:
-    """
-    Fetch the OpenAI API response.
-
-    Args:
-    prompt (str): The prompt to send to the OpenAI API.
-
-    Returns:
-    str: The OpenAI API response.
-    """
-    # Simulate an API call
-    time.sleep(1)
-    return f"Response for {prompt}"
-
-def get_openai_api_response(prompt: str) -> str:
-    """
-    Get the OpenAI API response from the cache or fetch it if not cached.
-
-    Args:
-    prompt (str): The prompt to send to the OpenAI API.
-
-    Returns:
-    str: The OpenAI API response.
-    """
-    cached_response = cache.get(prompt)
-    if cached_response:
-        return cached_response
-    else:
-        response = fetch_openai_api(prompt)
-        cache.set(prompt, response)
-        return response
-
-# Test the cache
-print(get_openai_api_response("Hello, World!"))  # Fetches the API response
-print(get_openai_api_response("Hello, World!"))  # Retrieves from cache
-cache.delete("Hello, World!")
-print(get_openai_api_response("Hello, World!"))  # Fetches the API response again
+cache.set("github_api_response", {"status": 200, "data": {"user": "john"}})
+print(cache.get("github_api_response"))  # prints: {'status': 200, 'data': {'user': 'john'}}
+time.sleep(61)  # wait for the cache to expire
+print(cache.get("github_api_response"))  # prints: None
