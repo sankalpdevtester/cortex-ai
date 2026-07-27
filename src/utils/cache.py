@@ -4,14 +4,13 @@ from typing import Any, Dict, Optional
 class Cache:
     def __init__(self, ttl: int = 60):
         """
-        Initialize the cache with a TTL (time to live) in seconds.
+        Initialize the cache with a time-to-live (TTL) value.
 
         Args:
-        ttl (int): The time to live for each cache entry in seconds. Defaults to 60.
+        ttl (int): The time-to-live value in seconds. Defaults to 60.
         """
-        self.ttl = ttl
         self.cache: Dict[str, Any] = {}
-        self.expiration: Dict[str, float] = {}
+        self.ttl = ttl
 
     def get(self, key: str) -> Optional[Any]:
         """
@@ -24,11 +23,11 @@ class Cache:
         Optional[Any]: The cached value if it exists and is not expired, otherwise None.
         """
         if key in self.cache:
-            if time.time() < self.expiration[key]:
-                return self.cache[key]
+            value, expiry = self.cache[key]
+            if time.time() < expiry:
+                return value
             else:
                 del self.cache[key]
-                del self.expiration[key]
         return None
 
     def set(self, key: str, value: Any) -> None:
@@ -39,8 +38,8 @@ class Cache:
         key (str): The key to store in the cache.
         value (Any): The value to store in the cache.
         """
-        self.cache[key] = value
-        self.expiration[key] = time.time() + self.ttl
+        expiry = time.time() + self.ttl
+        self.cache[key] = (value, expiry)
 
     def delete(self, key: str) -> None:
         """
@@ -51,21 +50,52 @@ class Cache:
         """
         if key in self.cache:
             del self.cache[key]
-            del self.expiration[key]
 
 def get_cache() -> Cache:
     """
-    Get the global cache instance.
+    Get the cache instance.
 
     Returns:
-    Cache: The global cache instance.
+    Cache: The cache instance.
     """
-    cache = Cache()
-    return cache
+    return Cache()
+
+def cache_api_response(ttl: int = 60):
+    """
+    Decorator to cache API responses.
+
+    Args:
+    ttl (int): The time-to-live value in seconds. Defaults to 60.
+    """
+    cache = get_cache()
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
+            cached_response = cache.get(key)
+            if cached_response:
+                return cached_response
+            response = func(*args, **kwargs)
+            cache.set(key, response)
+            return response
+        return wrapper
+    return decorator
 
 # Example usage:
+@cache_api_response(ttl=30)
+def fetch_github_data(repo: str, owner: str) -> Dict[str, str]:
+    # Simulate an API call to GitHub
+    time.sleep(2)
+    return {"repo": repo, "owner": owner}
+
+# Test the cache
 cache = get_cache()
-cache.set("github_api_response", {"status": 200, "data": {"user": "john"}})
-print(cache.get("github_api_response"))  # prints: {'status': 200, 'data': {'user': 'john'}}
-time.sleep(61)  # wait for the cache to expire
-print(cache.get("github_api_response"))  # prints: None
+print(cache.get("test_key"))  # Should print None
+cache.set("test_key", "test_value")
+print(cache.get("test_key"))  # Should print "test_value"
+cache.delete("test_key")
+print(cache.get("test_key"))  # Should print None
+
+# Test the decorator
+print(fetch_github_data("cortex", "example"))  # Should print {"repo": "cortex", "owner": "example"}
+print(fetch_github_data("cortex", "example"))  # Should print {"repo": "cortex", "owner": "example"} from cache
