@@ -1,5 +1,6 @@
 import time
 from typing import Any, Dict, Optional
+from collections import OrderedDict
 
 class Cache:
     def __init__(self, ttl: int = 60):
@@ -9,15 +10,15 @@ class Cache:
         Args:
         ttl (int): The time-to-live value in seconds. Defaults to 60.
         """
-        self.cache: Dict[str, Any] = {}
         self.ttl = ttl
+        self.cache: Dict[str, Any] = OrderedDict()
 
     def get(self, key: str) -> Optional[Any]:
         """
         Get a value from the cache.
 
         Args:
-        key (str): The key to retrieve from the cache.
+        key (str): The key to retrieve.
 
         Returns:
         Optional[Any]: The cached value if it exists and is not expired, otherwise None.
@@ -35,67 +36,74 @@ class Cache:
         Set a value in the cache.
 
         Args:
-        key (str): The key to store in the cache.
-        value (Any): The value to store in the cache.
+        key (str): The key to store.
+        value (Any): The value to store.
         """
         expiry = time.time() + self.ttl
         self.cache[key] = (value, expiry)
+        self.cache.move_to_end(key)
 
     def delete(self, key: str) -> None:
         """
         Delete a key from the cache.
 
         Args:
-        key (str): The key to delete from the cache.
+        key (str): The key to delete.
         """
         if key in self.cache:
             del self.cache[key]
 
+    def clear(self) -> None:
+        """
+        Clear the entire cache.
+        """
+        self.cache.clear()
+
 def get_cache() -> Cache:
     """
-    Get the cache instance.
+    Get the global cache instance.
 
     Returns:
-    Cache: The cache instance.
+    Cache: The global cache instance.
     """
     return Cache()
 
-def cache_api_response(ttl: int = 60):
+# Example usage:
+cache = get_cache()
+
+def fetch_github_data(repo: str) -> str:
     """
-    Decorator to cache API responses.
+    Fetch GitHub data for a repository.
 
     Args:
-    ttl (int): The time-to-live value in seconds. Defaults to 60.
+    repo (str): The repository name.
+
+    Returns:
+    str: The fetched data.
     """
-    cache = get_cache()
+    # Simulate an API call
+    time.sleep(1)
+    return f"Data for {repo}"
 
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
-            cached_response = cache.get(key)
-            if cached_response:
-                return cached_response
-            response = func(*args, **kwargs)
-            cache.set(key, response)
-            return response
-        return wrapper
-    return decorator
+def get_github_data(repo: str) -> str:
+    """
+    Get GitHub data for a repository, using the cache if available.
 
-# Example usage:
-@cache_api_response(ttl=30)
-def fetch_github_data(repo: str, owner: str) -> Dict[str, str]:
-    # Simulate an API call to GitHub
-    time.sleep(2)
-    return {"repo": repo, "owner": owner}
+    Args:
+    repo (str): The repository name.
+
+    Returns:
+    str: The fetched data.
+    """
+    cached_data = cache.get(repo)
+    if cached_data is not None:
+        return cached_data
+    else:
+        data = fetch_github_data(repo)
+        cache.set(repo, data)
+        return data
 
 # Test the cache
-cache = get_cache()
-print(cache.get("test_key"))  # Should print None
-cache.set("test_key", "test_value")
-print(cache.get("test_key"))  # Should print "test_value"
-cache.delete("test_key")
-print(cache.get("test_key"))  # Should print None
-
-# Test the decorator
-print(fetch_github_data("cortex", "example"))  # Should print {"repo": "cortex", "owner": "example"}
-print(fetch_github_data("cortex", "example"))  # Should print {"repo": "cortex", "owner": "example"} from cache
+print(get_github_data("facebook/react"))  # Fetches data and caches it
+print(get_github_data("facebook/react"))  # Retrieves data from cache
+print(get_github_data("google/tensorflow"))  # Fetches data and caches it
