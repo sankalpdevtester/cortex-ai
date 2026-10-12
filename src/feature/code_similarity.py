@@ -1,4 +1,3 @@
-```python
 import os
 import requests
 from typing import List, Dict
@@ -74,4 +73,3 @@ async def get_code_similarity_report_endpoint(
     similarities = await analyze_code_similarity(repo_owner, repo_name, file_path, github_token, openai_token)
     report = get_code_similarity_report(similarities)
     return report
-```

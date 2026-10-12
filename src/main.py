@@ -1,4 +1,3 @@
-```python
 import os
 import logging
 from fastapi import FastAPI, Request
@@ -160,4 +159,3 @@ async def suggest_optimizations(pull_request: PullRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-```

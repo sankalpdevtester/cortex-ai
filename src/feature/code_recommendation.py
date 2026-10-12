@@ -1,4 +1,3 @@
-```python
 import os
 import json
 from typing import List, Dict
@@ -89,4 +88,3 @@ async def get_code_similarity_score(
 # code1 = "def hello_world(): print('Hello World!')"
 # code2 = "def hello_world(): print('Hello World!')"
 # similarity_score = get_code_similarity(code1, code2)
-```
